@@ -1,8 +1,8 @@
+import re
 from os import path, getcwd
-from re import search
 from pandas import concat, ExcelFile, ExcelWriter
 from tkinter import messagebox
-from numpy import nan, where
+from numpy import nan, setdiff1d
 
 from .converter import convert_dict
 
@@ -83,7 +83,9 @@ def read_file(filename):
     # print(f'{len(df_list)} regions are found.')
     df_merged = concat(df_list)
     df_merged = df_merged.astype('float64', copy=True, errors='raise')
-    temp_index = df_merged.index.to_series().replace({' *': '', '*': '',})
+    temp_index = df_merged.index.to_series().replace(
+        {re.compile(r'(.*) \*'): r'\1', re.compile(r'(.*)\*'): r'\1'}, regex=True
+        )
     df_merged.index = temp_index.replace(convert_dict)
     df_merged = df_merged[df_merged.index.notnull()]
     return df_merged
@@ -92,14 +94,14 @@ def read_file(filename):
 def calculate_difference(old_filename, new_filename):
     """Calculate price changes for eight basic products."""
     extension_pattern = '.xlsx'
-    if not search(extension_pattern, old_filename):
+    if not re.search(extension_pattern, old_filename):
         old_filename += extension_pattern
-    if not search(extension_pattern, new_filename):
+    if not re.search(extension_pattern, new_filename):
         new_filename += extension_pattern
 
     date_pattern = r'\d{2}\.\d{2}\.\d{4}'
-    old_date = search(date_pattern, old_filename)
-    new_date = search(date_pattern, new_filename)
+    old_date = re.search(date_pattern, old_filename)
+    new_date = re.search(date_pattern, new_filename)
     if not old_date:
         create_messagebox('Old filename is invalid.')
         return
@@ -117,9 +119,8 @@ def calculate_difference(old_filename, new_filename):
     new_date = new_date.group()
     new_file = read_file(new_filename)
     old_file = read_file(old_filename)
-    bool_array = sorted(new_file.index) != sorted(old_file.index)  
-    non_matches = sorted(new_file.index)[where(bool_array, True, False)]
-    if non_matches:
+    non_matches = setdiff1d(new_file.index, old_file.index)
+    if non_matches.size > 0:
         create_messagebox('non-matching names: ' + str(non_matches))
         return
 
@@ -133,3 +134,4 @@ def calculate_difference(old_filename, new_filename):
         series_sorted.to_excel(writer, sheet_name=column,
                                encoding='utf-8', index_label='place')
     writer.save()
+    create_messagebox(f'{excel_name} has been created.', False)
