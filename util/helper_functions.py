@@ -2,7 +2,9 @@ from os import path, getcwd
 from re import search
 from pandas import concat, ExcelFile, ExcelWriter
 from tkinter import messagebox
-from numpy import nan
+from numpy import nan, where
+
+from .converter import convert_dict
 
 
 def create_messagebox(text, is_error=True):
@@ -69,7 +71,7 @@ def read_file(filename):
     skip_columns = ['Респуб-лика бўйича ўртача', 'Вилоят бўйича ўртача', 'Шаҳар бўйича ўртача']
     use_rows = [
         'Мол гўшти', 'Сут, 1 литр', 'Тухум, 10 донаси',
-        'Картошка', 'Гуруч', 'Ўсимлик ёғи', 'Буғдой уни', 'Шакар'
+        'Картошка', 'Ўсимлик ёғи', 'Гуруч', 'Буғдой уни', 'Шакар'
     ]
     excel_file = ExcelFile(filename)
     df_list = []
@@ -78,14 +80,23 @@ def read_file(filename):
             df_sheet = read_sheet(excel_file, sheet, skip_columns, use_rows)
             df_list.append(df_sheet)
 
-    print(f'{len(df_list)} regions are found.')
+    # print(f'{len(df_list)} regions are found.')
     df_merged = concat(df_list)
     df_merged = df_merged.astype('float64', copy=True, errors='raise')
+    temp_index = df_merged.index.to_series().replace({' *': '', '*': '',})
+    df_merged.index = temp_index.replace(convert_dict)
+    df_merged = df_merged[df_merged.index.notnull()]
     return df_merged
 
 
 def calculate_difference(old_filename, new_filename):
     """Calculate price changes for eight basic products."""
+    extension_pattern = '.xlsx'
+    if not search(extension_pattern, old_filename):
+        old_filename += extension_pattern
+    if not search(extension_pattern, new_filename):
+        new_filename += extension_pattern
+
     date_pattern = r'\d{2}\.\d{2}\.\d{4}'
     old_date = search(date_pattern, old_filename)
     new_date = search(date_pattern, new_filename)
@@ -106,6 +117,12 @@ def calculate_difference(old_filename, new_filename):
     new_date = new_date.group()
     new_file = read_file(new_filename)
     old_file = read_file(old_filename)
+    bool_array = sorted(new_file.index) != sorted(old_file.index)  
+    non_matches = sorted(new_file.index)[where(bool_array, True, False)]
+    if non_matches:
+        create_messagebox('non-matching names: ' + str(non_matches))
+        return
+
     percentage = new_file.subtract(old_file).div(old_file)
     excel_name = f'{old_date}-{new_date}-inflation.xlsx'
     writer = ExcelWriter(excel_name, engine='xlsxwriter')
