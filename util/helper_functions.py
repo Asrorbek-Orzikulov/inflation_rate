@@ -80,7 +80,6 @@ def read_file(filename):
             df_sheet = read_sheet(excel_file, sheet, skip_columns, use_rows)
             df_list.append(df_sheet)
 
-    # print(f'{len(df_list)} regions are found.')
     df_merged = concat(df_list)
     df_merged = df_merged.astype('float64', copy=True, errors='raise')
     temp_index = df_merged.index.to_series().replace(
