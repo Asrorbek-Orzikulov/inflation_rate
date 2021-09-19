@@ -121,10 +121,12 @@ def calculate_difference(old_filename, new_filename):
         new_file = read_file(new_filename)
     except Exception:
         create_messagebox(f'{new_filename}: ' + str(Exception))
+        return
     try:
         old_file = read_file(old_filename)
     except Exception:
         create_messagebox(f'{old_filename}: ' + str(Exception))
+        return
 
     non_matches = setdiff1d(new_file.index, old_file.index)
     if non_matches.size > 0:
