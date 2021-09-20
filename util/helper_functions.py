@@ -1,6 +1,6 @@
 import re
 from os import path, getcwd
-from pandas import concat, ExcelFile, ExcelWriter
+from pandas import concat, ExcelFile, ExcelWriter, DataFrame
 from tkinter import messagebox
 from numpy import nan, setdiff1d
 
@@ -60,10 +60,14 @@ def read_sheet(excel_file, sheet_name, skip_columns, use_rows):
         lambda column: ''.join([row for row in column]), axis=0)
     df = df.drop(skip_columns, axis=1, errors='ignore')
     df = df.iloc[2:]
-    df.set_index('Маҳсулот номи', inplace=True)
-    df = df.loc[use_rows, :]
-    df = df.transpose()
-    return df
+    try:
+        df.set_index('Маҳсулот номи', inplace=True)
+        df = df.loc[use_rows, :]
+        df = df.transpose()
+        return df
+    except Exception as excp:
+        create_messagebox(f'{sheet_name}: ' + str(excp))
+        return DataFrame()
 
 
 def read_file(filename):
@@ -78,7 +82,10 @@ def read_file(filename):
     for sheet in excel_file.sheet_names:
         if sheet not in ['laroux', '1700']:
             df_sheet = read_sheet(excel_file, sheet, skip_columns, use_rows)
-            df_list.append(df_sheet)
+            if not df_sheet.empty:
+                df_list.append(df_sheet)
+            else:
+                return DataFrame()
 
     df_merged = concat(df_list)
     df_merged = df_merged.astype('float64', copy=True, errors='raise')
@@ -114,19 +121,17 @@ def calculate_difference(old_filename, new_filename):
         create_messagebox(f'New file doesn\'t exist in {getcwd()}')
         return
 
+    old_file = read_file(old_filename)
+    if old_file.empty:
+        create_messagebox(f'Look for the problem in {old_filename}', False)
+        return
+    new_file = read_file(new_filename)
+    if new_file.empty:
+        create_messagebox(f'Look for the problem in {new_filename}', False)
+        return    
+
     old_date = old_date.group()
     new_date = new_date.group()
-    try:
-        new_file = read_file(new_filename)
-    except Exception:
-        create_messagebox(f'{new_filename}: ' + str(Exception))
-        return
-    try:
-        old_file = read_file(old_filename)
-    except Exception:
-        create_messagebox(f'{old_filename}: ' + str(Exception))
-        return
-
     non_matches = setdiff1d(new_file.index, old_file.index)
     if non_matches.size > 0:
         create_messagebox('non-matching names: ' + str(non_matches))
